@@ -4,12 +4,13 @@ var requestP = require('request-promise');
 var cheerio = require('cheerio');
 var entities = require('html-entities').AllHtmlEntities;
 var fs = require('fs');
-var sleeptime = 1000;
+var sleeptime = 500;
+var startPage = 0;
 
 
 var jaar = '2016';
-var stadsdeel = '3608'; // Nieuw West
-var startPage = 0;
+var stadsdeel = ''; // Alle stadsdelen
+// stadsdeel = '3613'; // specifiek stadsdeel
 
 var stadsdelen = [{code:"3607", name: "Centrum"},
                   {code:"3608", name: "Nieuw-West"},
@@ -25,9 +26,9 @@ fs.writeFile(outfile, 'jaar,stadsdeel,titel,aanvang,publicatieDatum,dagen,omschr
 });
 
 
+console.log(buildIndexURL(jaar, '', 0))
 
 function getIndexPage(jaar, stadsdeelCode, page) {
-    console.log('page: ', page);
 
     if (page > (startPage+2)) {
 //        return; // bail out for now
@@ -37,6 +38,12 @@ function getIndexPage(jaar, stadsdeelCode, page) {
 
     requestP(uriPlusOption(uri))
     .then(function ($) {
+
+        var counter = $('div.counter').find('p').eq(1).html();
+        // Resultaten 51 t/m 100 getoond&#xA0;-&#xA0;1184&#xA0;resultaten gevonden
+        var nrResults = counter.split(';')[2].replace('&#xA0', '');
+        console.log('page ' + (page+1) + ' of ' + Math.ceil(nrResults /50));    
+
         var detailpageread = 1;
         var $detailregels = $('div.resultaat');
         // console.log($detailregels.length, 'regels gevonden op page ', page);
@@ -79,7 +86,7 @@ function uriPlusOption(uri) {
 }
 
 function buildIndexURL(jaar, stadsdeelCode, page) {
-    return `https://www.amsterdam.nl/nieuwsarchief/bekendmakingen/bekendmakingen-${jaar}/?Zoe_Selected_facet%3aPublicerende+instantie=&Zoe_Clt_SelItmIdt=5065%2c5432%2c5433&ZoeTyp=Zip&pager_page=${page}`;
+    return `https://www.amsterdam.nl/nieuwsarchief/bekendmakingen/bekendmakingen-${jaar}/?Zoe_Selected_facet%3aPublicerende+instantie=${stadsdeel}&Zoe_Clt_SelItmIdt=5065%2c5432%2c5433&ZoeTyp=Zip&pager_page=${page}`;
 }
 
 function sleep(time, callback) {
@@ -129,6 +136,18 @@ function getDetailPage(url, jaar, stadsdeelCode, page) {
             omschrijving = titel.replace('<strong>', '').replace('</strong>', '');
         }
 
+        // Namens de Burgemeester van Amsterdam heeft de voorzitter van het algemeen bestuur van de bestuurscommissie van stadsdeel Zuidoost op 11 mei 2016
+        var rookgordijn = 'Namens de Burgemeester van Amsterdam'.toLowerCase();
+        if (omschrijving.toLowerCase().indexOf(rookgordijn) !== -1) {
+            console.log('rookgordijn');
+            omschrijving = omschrijving.substr(omschrijving.indexOf(jaar) + 5);
+        }
+
+        rookgordijn = 'Er is op '.toLowerCase();
+        if (omschrijving.toLowerCase().indexOf(rookgordijn) !== -1) {
+            omschrijving = omschrijving.substr(omschrijving.indexOf(jaar) + 5);
+        }
+
         omschrijving = entities.decode(omschrijving);
         if (omschrijving.substring(0,1) === ',') {
             omschrijving = omschrijving.substring(1);
@@ -138,6 +157,7 @@ function getDetailPage(url, jaar, stadsdeelCode, page) {
         }
         titel = titel ? entities.decode(titel) : '';
 
+        // will be comma-separated file so remove commas here.
         omschrijving = omschrijving.replace(/,/g, '.');
         titel = titel.replace(/,/g, '.');
 
@@ -146,6 +166,12 @@ function getDetailPage(url, jaar, stadsdeelCode, page) {
         var stadsdeelNaam = entities.decode($('#Content .stadsdeel').html()).replace('Stadsdeel ','').replace('-', '').replace('-', '');
 
         var aanvang = seekStartDate(omschrijving);
+
+        if (omschrijving.toLowerCase().indexOf('koningsnacht') !== -1) {
+            aanvang = `26-4-${jaar}`;
+        } else if (omschrijving.toLowerCase().indexOf('koningsdag') !== -1) {
+            aanvang = `27-4-${jaar}`;
+        }
 
         var dagenTijd = daysInBetween(publicatieDatum, aanvang);
         var dagenBinnen6Weken = dagenTijd < 42 ? dagenTijd : '';
@@ -230,7 +256,7 @@ function seekStartDate(omschrijving) {
 
 function isoDateFromDutchDate(value) {
     var arr = value.split(' ');
-    if(arr.length !== 3) {
+    if(!arr || arr.length !== 3) {
         return value;
     }
     var months = ["zeroitem", "januari", "februari", "maart", "april", "mei", "juni", "juli", "augustus", "september", "oktober", "november", "december"];
