@@ -20,7 +20,7 @@ var stadsdelen = [{code:"3607", name: "Centrum"},
                   {code:"3612", name: "Zuid"},
                   {code:"3613", name: "Zuidoost"}];
 
-var outfile = `bekendmakingen.xls`;
+var outfile = `bekendmakingen{jaar}.xls`;
 fs.writeFile(outfile, 'jaar,stadsdeel,titel,aanvang,publicatieDatum,dagen,omschrijving,url,performance,dagen<6weken\n', function (err) {
   if (err) throw err;
 });
