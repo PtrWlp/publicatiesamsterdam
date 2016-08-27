@@ -6,9 +6,10 @@ var entities = require('html-entities').AllHtmlEntities;
 var fs = require('fs');
 var sleeptime = 500;
 var startPage = 0;
+var bailEarly = false;
 
 
-var jaar = '2016';
+var jaar = '2015';
 var stadsdeel = ''; // Alle stadsdelen
 // stadsdeel = '3613'; // specifiek stadsdeel
 
@@ -21,7 +22,7 @@ var stadsdelen = [{code:"3607", name: "Centrum"},
                   {code:"3613", name: "Zuidoost"}];
 
 var outfile = `bekendmakingen-${jaar}.xls`;
-fs.writeFile(outfile, 'jaar,stadsdeel,titel,aanvang,publicatieDatum,dagen,omschrijving,url,performance,dagen<6weken\n', function (err) {
+fs.writeFile(outfile, 'jaar,stadsdeel,titel,aanvang,publicatieDatum,dagen,omschrijving,url,performance\n', function (err) {
   if (err) throw err;
 });
 
@@ -30,8 +31,8 @@ console.log(buildIndexURL(jaar, '', 0))
 
 function getIndexPage(jaar, stadsdeelCode, page) {
 
-    if (page > (startPage+2)) {
-//        return; // bail out for now
+    if (page > (startPage + 2) && bailEarly) {
+        return; // bail out for now
     }
 
     let uri = buildIndexURL(jaar, stadsdeelCode, page);
@@ -52,8 +53,8 @@ function getIndexPage(jaar, stadsdeelCode, page) {
             if (element.attribs.href.indexOf('/besluit') === -1) {
                return;
             }
-            if (detailpageread > 3) {
-//                return;
+            if (detailpageread > 5 && bailEarly) {
+                return;
             }
             detailpageread++;
 
@@ -114,14 +115,21 @@ function getDetailPage(url, jaar, stadsdeelCode, page) {
     console.log('reading: ', url);
     requestP(uriPlusOption(url))
     .then(function ($) {
-        var publicatieDatum = isoDateFromDutchDate($('#Content .brondatum').html());
-        var titel = $('#Content .iprox-content').find('p').find('strong').html();
-        if (titel === "Verleend") {
-            titel = $('#Content .iprox-content').find('p').eq(1).find('strong').html();
-        }
-        if (!titel) {
-            titel = $('#Content.contents_container').find('h1').html();
-        }
+
+        var id = $.html('meta[name="DC.identifier"]');
+        var weekno = id.substr(id.indexOf('/week-') + 6, 2);
+        console.log('Weekno ', weekno);
+
+        var newdate = new Date('2015-01-01');
+        var daysInYear = (weekno - 1) * 7;
+        newdate.setDate(newdate.getDate() + daysInYear);
+
+        var publicatieDatum =  newdate.getDate() + '-' + (newdate.getMonth() + 1) + '-' + newdate.getFullYear();
+
+        var titel = $.html('meta[name="DC.title"]').replace('<meta name="DC.title" content="', '').replace('">','');
+
+        titel = titel.replace('Besluit evenementenvergunning verleend voor het evenement ', '');
+        titel = titel.replace('Besluit evenementenvergunning verleend voor ', '');
         titel = titel.replace('Besluit evenementenvergunning ', '');
 
         var omschrijving = $('#Content .iprox-content').find('p').html();
@@ -131,10 +139,17 @@ function getDetailPage(url, jaar, stadsdeelCode, page) {
         }
 
         omschrijving = omschrijving.replace(`<strong>${titel}</strong>`, '');
+        omschrijving = omschrijving.replace('<strong>', '').replace('</strong>', '');
+
         if (omschrijving === '') {
             // must have been all strongg
             omschrijving = titel.replace('<strong>', '').replace('</strong>', '');
         }
+
+        omschrijving = omschrijving.replace('Verleend voor het evenement ', '');
+        omschrijving = omschrijving.replace('Verleend voor ', '');
+        omschrijving = omschrijving.replace('voor het houden van het evenement ', '');
+
 
         // Namens de Burgemeester van Amsterdam heeft de voorzitter van het algemeen bestuur van de bestuurscommissie van stadsdeel Zuidoost op 11 mei 2016
         var rookgordijn = 'Namens de Burgemeester van Amsterdam'.toLowerCase();
@@ -174,7 +189,6 @@ function getDetailPage(url, jaar, stadsdeelCode, page) {
         }
 
         var dagenTijd = daysInBetween(publicatieDatum, aanvang);
-        var dagenBinnen6Weken = dagenTijd < 42 ? dagenTijd : '';
 
         var performance;
 
@@ -197,7 +211,7 @@ function getDetailPage(url, jaar, stadsdeelCode, page) {
         if (omschrijving.toLowerCase().indexOf('buiten behandeling') !== -1) {
             console.log('buiten behandeling');
         } else {
-            fs.appendFile(outfile, `${jaar},${stadsdeelNaam},"${titel}",${aanvang},${publicatieDatum},${dagenTijd},"${omschrijving}",${url},${performance},${dagenBinnen6Weken}\n`, function (err) {
+            fs.appendFile(outfile, `${jaar},${stadsdeelNaam},"${titel}",${aanvang},${publicatieDatum},${dagenTijd},"${omschrijving}",${url},${performance}\n`, function (err) {
             });
         }
 
