@@ -21,7 +21,7 @@ var stadsdelen = [{code:"3607", name: "Centrum"},
                   {code:"3613", name: "Zuidoost"}];
 
 var outfile = `bekendmakingen.xls`;
-fs.writeFile(outfile, 'jaar,stadsdeel,titel,aanvang,publicatieDatum,dagen,omschrijving,url,performance,dagen<6weken\n', function (err) {
+fs.writeFile(outfile, 'jaar,stadsdeel,titel,aanvang,publicatieDatum,omschrijving,url,luid,dagen,performance,dagen<6weken\n', function (err) {
   if (err) throw err;
 });
 
@@ -123,6 +123,7 @@ function getDetailPage(url, jaar, stadsdeelCode, page) {
             titel = $('#Content .content').find('h1').html();
         }
         titel = titel.replace('Besluit evenementenvergunning ', '');
+        titel = titel.replace('voor het evenement ', '');
 
         var omschrijving = $('#Content .iprox-content').find('p').html();
 
@@ -148,6 +149,9 @@ function getDetailPage(url, jaar, stadsdeelCode, page) {
             omschrijving = omschrijving.substr(omschrijving.indexOf(jaar) + 5);
         }
 
+        omschrijving = omschrijving.replace('<strong>', '');
+        omschrijving = omschrijving.replace('</strong>', '');
+
         omschrijving = entities.decode(omschrijving);
         if (omschrijving.substring(0,1) === ',') {
             omschrijving = omschrijving.substring(1);
@@ -169,8 +173,7 @@ function getDetailPage(url, jaar, stadsdeelCode, page) {
             stadsdeelNaam = entities.decode($('#Content .stadsdeel').html()).replace('Stadsdeel ','').replace('-', '').replace('-', '');
         }
         catch(err) {
-            console.log('oei');
-            console.log($('#Content .stadsdeel').html());
+            console.log('geen stadsdeel');
         }
 
         var aanvang = seekStartDate(omschrijving);
@@ -182,6 +185,11 @@ function getDetailPage(url, jaar, stadsdeelCode, page) {
         }
 
         var dagenTijd = daysInBetween(publicatieDatum, aanvang);
+        if (400 > dagenTijd < 50) {
+            aanvang = addAYear(aanvang);
+            dagenTijd = daysInBetween(publicatieDatum, aanvang);
+        }
+
         var dagenBinnen6Weken = dagenTijd < 42 ? dagenTijd : '';
 
         var performance;
@@ -202,10 +210,18 @@ function getDetailPage(url, jaar, stadsdeelCode, page) {
             performance = 'F. op tijd';
         }
 
+        var luid;
+        if (omschrijving.toLowerCase().indexOf('dance')) {
+            luid = 'y'
+        }
+        if (omschrijving.toLowerCase().indexOf('versterkte')) {
+            luid = 'y'
+        }
+
         if (omschrijving.toLowerCase().indexOf('buiten behandeling') !== -1) {
             console.log('buiten behandeling');
         } else {
-            fs.appendFile(outfile, `${jaar},${stadsdeelNaam},"${titel}",${aanvang},${publicatieDatum},${dagenTijd},"${omschrijving}",${url},${performance},${dagenBinnen6Weken}\n`, function (err) {
+            fs.appendFile(outfile, `${jaar},${stadsdeelNaam},"${titel}",${aanvang},${publicatieDatum},"${omschrijving}",${url},${luid},${dagenTijd},${performance},${dagenBinnen6Weken}\n`, function (err) {
             });
         }
 
@@ -281,6 +297,16 @@ function daysInBetween(dateString1, dateString2) {
     var _MS_PER_DAY = 1000 * 60 * 60 * 24;
 
     return Math.floor((date2 - date1) / _MS_PER_DAY);    
+}
+
+function addAYear(dateString) {
+    var parts = dateString.split('-');
+    if (parts.length !== 3) {
+        return '';
+    }
+    var date1 = new Date(parts[2] + '-' + parts[1] + '-' + parts[0]);
+
+    return parts[0] + '-' + parts[1] + '-' + (date1.getFullYear() + 1);    
 }
 
 function decodeEntities(encodedString) {
