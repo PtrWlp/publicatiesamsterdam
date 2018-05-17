@@ -1,5 +1,15 @@
 'use strict';
 
+
+var jaar = process.argv[2];
+
+if (!jaar) {
+    console.log('************************');
+    console.log('ERROR: add year as param');
+    console.log('************************');
+    process.exit(1);
+}
+
 var requestP = require('request-promise');
 var cheerio = require('cheerio');
 var entities = require('html-entities').AllHtmlEntities;
@@ -7,8 +17,6 @@ var fs = require('fs');
 var sleeptime = 500;
 var startPage = 0;
 
-
-var jaar = '2017';
 var stadsdeel = ''; // Alle stadsdelen
 // stadsdeel = '3613'; // specifiek stadsdeel
 
@@ -185,7 +193,7 @@ function getDetailPage(url, jaar, stadsdeelCode, page) {
         }
 
         var dagenTijd = daysInBetween(publicatieDatum, aanvang);
-        if (400 > dagenTijd < 50) {
+        if (dagenTijd > 250) {
             aanvang = addAYear(aanvang);
             dagenTijd = daysInBetween(publicatieDatum, aanvang);
         }
@@ -210,11 +218,14 @@ function getDetailPage(url, jaar, stadsdeelCode, page) {
             performance = 'F. op tijd';
         }
 
-        var luid;
-        if (omschrijving.toLowerCase().indexOf('dance') !== -1) {
+        var luid = '';
+        if (omschrijving.toLowerCase().indexOf('dance')  !== -1) {
             luid = 'y'
         }
-        if (omschrijving.toLowerCase().indexOf('versterkte') !== -1) {
+        if (omschrijving.toLowerCase().indexOf('muziek')  !== -1) {
+            luid = '?'
+        }
+        if (omschrijving.toLowerCase().indexOf('versterkte')  !== -1) {
             luid = 'y'
         }
 
